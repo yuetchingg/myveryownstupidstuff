@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Happy Mrs. Chicken</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            /* Solid Sky Blue Background */
+            background-color: #85C1E9;
+            font-family: 'Comic Sans MS', 'Chalkboard SE', sans-serif;
+            user-select: none;
+            touch-action: none;
+        }
+
+        #score-display {
+            position: absolute;
+            top: 20px;
+            right: 30px;
+            font-size: 56px;
+            font-weight: bold;
+            color: #FFFDF0;
+            text-shadow: 4px 4px 0 #000, -4px -4px 0 #000, 4px -4px 0 #000, -4px 4px 0 #000;
+            z-index: 100;
+            pointer-events: none;
+        }
+
+        /* Cute Cartoonish Peppa-styled Music Control */
+        #music-toggle {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 101;
+            background-color: #FF5722;
+            color: white;
+            border: 3.5px solid #000;
+            border-radius: 25px;
+            padding: 12px 24px;
+            font-size: 18px;
+            font-family: 'Comic Sans MS', sans-serif;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 6px 0 #000;
+            transition: transform 0.1s, background-color 0.2s;
+        }
+
+        #music-toggle:active {
+            transform: translateY(4px);
+            box-shadow: 0 2px 0 #000;
+        }
+
+        /* Mrs. Chicken main sprite */
+        #mrs-chicken {
+            position: absolute;
+            top: 15%;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 170px;
+            z-index: 50;
+            pointer-events: none; /* Clicks pass through to background to lay eggs */
+            transition: transform 0.1s ease;
+        }
+
+        .item-wrapper {
+            position: absolute;
+            transform: translate(-50%, -50%);
+            z-index: 10;
+        }
+
+        .egg-svg {
+            width: 35px;
+            height: 45px;
+            transform-origin: bottom center;
+        }
+
+        .chick-svg {
+            width: 45px;
+            height: 45px;
+            display: none; /* Hidden until hatched */
+        }
+
+        /* Mimic TV Show Hatching Animations */
+        .hatching .egg-svg {
+            display: none;
+        }
+
+        .hatching .chick-svg {
+            display: block;
+            animation: popHatch 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        .scurrying .chick-svg {
+            animation: waddle 0.3s infinite alternate linear;
+        }
+
+        @keyframes popHatch {
+            0% { transform: scale(0.2); opacity: 0; }
+            70% { transform: scale(1.3); opacity: 1; }
+            100% { transform: scale(1); }
+        }
+
+        @keyframes waddle {
+            0% { transform: rotate(-10deg) translateY(0); }
+            100% { transform: rotate(10deg) translateY(-5px); }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Dynamic Status Button -->
+    <button id="music-toggle">🎵 Music: Loading...</button>
+
+    <div id="score-display">0</div>
+
+    <!-- Mrs. Chicken -->
+    <div id="mrs-chicken">
+        <svg viewBox="0 0 100 100" width="170" height="170">
+            <!-- Tail -->
+            <path d="M 75 45 Q 95 35 85 65 Z" fill="#FFE600" stroke="#000" stroke-width="3"/>
+            <!-- Body -->
+            <ellipse cx="50" cy="55" rx="35" ry="30" fill="#FFE600" stroke="#000" stroke-width="3.5"/>
+            <!-- Comb -->
+            <path d="M 38 28 C 38 12, 48 10, 50 25 C 52 10, 62 12, 62 28 Z" fill="#FF0000" stroke="#000" stroke-width="2.5"/>
+            <!-- Beak -->
+            <polygon points="18,48 2,55 20,62" fill="#FF9900" stroke="#000" stroke-width="3"/>
+            <!-- Eye -->
+            <circle cx="32" cy="42" r="4" fill="#000"/>
+            <!-- Legs -->
+            <path d="M 42 85 L 42 98 M 36 98 L 48 98 M 58 85 L 58 98 M 52 98 L 64 98" stroke="#000" stroke-width="3.5" stroke-linecap="round"/>
+        </svg>
+    </div>
+
+    <!-- Dynamic Multi-Source Audio Engine -->
+    <audio id="stable-audio" loop preload="auto">
+        <!-- 1. Primary High-Speed Web stream -->
+        <source src="https://archive.org/download/tvtunes_8385/Peppa%20Pig.mp3" type="audio/mp3">
+        <!-- 2. Secondary Web Stream Backup -->
+        <source src="https://ia800304.us.archive.org/24/items/peppa-pig-theme-song/Peppa%20Pig%20Theme%20Song.mp3" type="audio/mp3">
+        <!-- 3. Local File Offline Backup -->
+        <source src="theme.mp3" type="audio/mp3">
+    </audio>
+
+    <script>
+        let score = 0;
+        let bgMusicStarted = false;
+        let hatchTimer = null;
+        
+        const scoreDisplay = document.getElementById('score-display');
+        const mrsChicken = document.getElementById('mrs-chicken');
+        const stableAudio = document.getElementById('stable-audio');
+        const musicToggle = document.getElementById('music-toggle');
+
+        // Markup for dynamic elements
+        const eggMarkup = `
+            <svg class="egg-svg" viewBox="0 0 50 65">
+                <ellipse cx="25" cy="32" rx="20" ry="27" fill="#FFFDF0" stroke="#000" stroke-width="3.5"/>
+            </svg>`;
+            
+        const chickMarkup = `
+            <svg class="chick-svg" viewBox="0 0 70 70">
+                <circle cx="35" cy="38" r="22" fill="#FFE600" stroke="#000" stroke-width="3.5"/>
+                <path d="M 30 16 C 30 8, 35 8, 35 16 C 35 8, 40 8, 40 16 Z" fill="#FF0000" stroke="#000" stroke-width="2.5"/>
+                <polygon points="14,35 2,40 16,46" fill="#FF9900" stroke="#000" stroke-width="3"/>
+                <circle cx="25" cy="32" r="3.5" fill="#000"/>
+                <path d="M 28 60 L 28 68 M 22 68 L 34 68 M 42 60 L 42 68 M 36 68 L 48 68" stroke="#000" stroke-width="3" stroke-linecap="round"/>
+            </svg>`;
+
+        // Initialize status
+        stableAudio.addEventListener('canplaythrough', () => {
+            if (!bgMusicStarted) {
+                musicToggle.innerText = "🎵 Play Theme Song";
+                musicToggle.style.backgroundColor = "#4CAF50"; // Bright Green
+            }
+        });
+
+        // Web Audio Synthesizer for cluck
+        function playCluckSound() {
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(450, ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(100, ctx.currentTime + 0.1);
+                gain.gain.setValueAtTime(0.3, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start();
+                osc.stop(ctx.currentTime + 0.1);
+            } catch(e) {}
+        }
+
+        // Dedicated Music Starter
+        function tryToPlayMusic() {
+            musicToggle.innerText = "🎵 Loading Music...";
+            musicToggle.style.backgroundColor = "#FF9800"; // Orange Loading
+
+            stableAudio.volume = 0.35;
+            stableAudio.play()
+                .then(() => {
+                    // SUCCESS: Lock states
+                    bgMusicStarted = true;
+                    musicToggle.innerText = "🔊 Music: ON";
+                    musicToggle.style.backgroundColor = "#FF5722"; // Active Red
+                    console.log("Theme music started successfully!");
+                })
+                .catch((error) => {
+                    // BLOCKED/FAILED: Do not lock state so we can retry
+                    bgMusicStarted = false;
+                    musicToggle.innerText = "❌ Play Theme Song";
+                    musicToggle.style.backgroundColor = "#F44336"; // Error Red
+                    console.log("Music play blocked by browser/network, will retry on next click.", error);
+                });
+        }
+
+        // Tap/Click on the Music Button
+        musicToggle.addEventListener('click', (e) => {
+            e.stopPropagation(); // Prevents spawning an egg when clicking the button
+            if (bgMusicStarted) {
+                stableAudio.pause();
+                bgMusicStarted = false;
+                musicToggle.innerText = "🔇 Music: OFF";
+                musicToggle.style.backgroundColor = "#757575"; // Grey
+            } else {
+                tryToPlayMusic();
+            }
+        });
+
+        // Main screen tap action
+        document.addEventListener('click', (e) => {
+            // Keep trying to start the song on every tap until browser unlocks audio
+            if (!bgMusicStarted) {
+                tryToPlayMusic();
+            }
+
+            // Laying bounce action for Mrs. Chicken
+            mrsChicken.style.transform = 'translateX(-50%) scale(1.15)';
+            setTimeout(() => mrsChicken.style.transform = 'translateX(-50%) scale(1)', 100);
+
+            // Lay Egg logic
+            playCluckSound();
+            score++;
+            scoreDisplay.innerText = score;
+            spawnEgg(e.clientX, e.clientY);
+
+            // Reset the hatch timing window
+            clearTimeout(hatchTimer);
+            hatchTimer = setTimeout(triggerHatch, 1200);
+        });
+
+        function spawnEgg(x, y) {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'item-wrapper egg-state';
+            wrapper.style.left = `${x}px`;
+            wrapper.style.top = `${y}px`;
+            wrapper.innerHTML = eggMarkup + chickMarkup;
+            document.body.appendChild(wrapper);
+        }
+
+        function triggerHatch() {
+            const eggs = document.querySelectorAll('.egg-state');
+            
+            eggs.forEach((egg, index) => {
+                setTimeout(() => {
+                    // 1. Pop out of the shell
+                    egg.classList.remove('egg-state');
+                    egg.classList.add('hatching');
+
+                    // 2. Scurry away to the left/right
+                    setTimeout(() => {
+                        egg.classList.add('scurrying');
+                        
+                        const rect = egg.getBoundingClientRect();
+                        const isLeftSide = rect.left < (window.innerWidth / 2);
+                        const targetX = isLeftSide ? -100 : window.innerWidth + 100;
+
+                        egg.style.transition = 'left 2.0s linear';
+                        egg.style.left = `${targetX}px`;
+
+                        // Flip chick graphics based on run direction
+                        if (!isLeftSide) {
+                            egg.style.transform = 'translate(-50%, -50%) scaleX(-1)';
+                        }
+
+                        // Purge chick element once it is off-screen
+                        setTimeout(() => egg.remove(), 2000);
+
+                    }, 400); // Wait for the cubic-bezier pop scale to finish
+
+                }, index * 100); // 100ms stagger between eggs
+            });
+        }
+    </script>
+</body>
+</html>
