@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Organs of Speech - Articulatory Anatomy Game</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        /* Drag and Drop Custom Animations */
+        @keyframes error-shake {
+            0%, 100% { transform: translateX(0); }
+            20%, 60% { transform: translateX(-8px); }
+            40%, 80% { transform: translateX(8px); }
+        }
+
+        @keyframes success-pop {
+            0% { transform: scale(0.9); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        @keyframes hint-pulse {
+            0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(234, 179, 8, 0.7); }
+            50% { transform: scale(1.04); box-shadow: 0 0 0 10px rgba(234, 179, 8, 0); }
+        }
+
+        .animate-shake {
+            animation: error-shake 0.4s ease-in-out;
+        }
+
+        .animate-success {
+            animation: success-pop 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .animate-hint {
+            animation: hint-pulse 1.2s infinite ease-in-out;
+            z-index: 30;
+        }
+
+        /* Custom Scrollbar for Toolbox */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+
+        /* SVG Anatomy Interactive Markers */
+        .anatomy-num-badge {
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        .anatomy-num-badge:hover, .anatomy-num-badge.active-target {
+            transform: scale(1.2);
+            filter: drop-shadow(0 0 6px rgba(14, 165, 233, 0.8));
+        }
+
+        /* Drop target hover visual cue */
+        .drop-slot.drag-over {
+            border-color: #0284c7 !important;
+            background-color: #e0f2fe !important;
+            transform: scale(1.02);
+        }
+
+        /* Selected state for Touch / Click-to-place fallback */
+        .term-block.touch-selected {
+            ring: 3px;
+            border-color: #2563eb !important;
+            box-shadow: 0 0 15px rgba(37, 99, 235, 0.4);
+            transform: translateY(-2px);
+        }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col justify-between antialiased">
+
+    <!-- Header -->
+    <header class="bg-slate-900 text-white shadow-md sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-3">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-teal-500 flex items-center justify-center text-white text-xl shadow-lg shadow-teal-500/30">
+                    <i class="fa-solid fa-head-side-cough"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg md:text-xl font-bold tracking-tight text-white leading-tight">Organs of Speech</h1>
+                    <p class="text-xs text-teal-300 font-medium">Articulatory Anatomy Drag & Drop Challenge</p>
+                </div>
+            </div>
+
+            <!-- Global Action Controls -->
+            <div class="flex items-center gap-2">
+                <button id="sound-btn" onclick="toggleSound()" class="p-2.5 px-3 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg text-sm font-medium transition flex items-center gap-1.5 border border-slate-700" title="Toggle Sound SFX">
+                    <i id="sound-icon" class="fa-solid fa-volume-high text-teal-400"></i>
+                    <span class="hidden sm:inline">Sound</span>
+                </button>
+                <button id="hint-btn" onclick="triggerHint()" class="p-2.5 px-3 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded-lg text-sm font-medium transition flex items-center gap-1.5 border border-amber-500/40" title="Get a Hint (-20 pts)">
+                    <i class="fa-solid fa-lightbulb text-amber-400"></i>
+                    <span class="hidden sm:inline">Hint</span>
+                </button>
+                <button onclick="resetGame()" class="p-2.5 px-3 bg-teal-600 hover:bg-teal-500 text-white rounded-lg text-sm font-semibold transition flex items-center gap-1.5 shadow-md shadow-teal-900/30" title="Reset Game">
+                    <i class="fa-solid fa-rotate-right"></i>
+                    <span>Restart</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Status / Scoreboard Bar -->
+    <div class="bg-white border-b border-slate-200 shadow-sm sticky top-[61px] z-30">
+        <div class="max-w-7xl mx-auto px-4 py-2.5 grid grid-cols-2 md:grid-cols-4 gap-4 items-center text-center">
+            <!-- Progress Bar Column -->
+            <div class="col-span-2 md:col-span-1 text-left">
+                <div class="flex justify-between items-center text-xs font-semibold text-slate-600 mb-1">
+                    <span>Progress</span>
+                    <span id="progress-text" class="text-teal-600 font-bold">0 / 17</span>
+                </div>
+                <div class="w-full bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                    <div id="progress-bar" class="bg-gradient-to-r from-teal-500 to-emerald-500 h-2.5 rounded-full transition-all duration-300 w-0"></div>
+                </div>
+            </div>
+
+            <!-- Score -->
+            <div class="flex items-center justify-center space-x-2 bg-slate-50 py-1.5 px-3 rounded-lg border border-slate-200">
+                <i class="fa-solid fa-trophy text-amber-500 text-base"></i>
+                <div class="text-xs text-slate-500 font-medium">Score: <span id="score-display" class="text-slate-900 font-bold text-sm">0</span></div>
+            </div>
+
+            <!-- Accuracy -->
+            <div class="flex items-center justify-center space-x-2 bg-slate-50 py-1.5 px-3 rounded-lg border border-slate-200">
+                <i class="fa-solid fa-bullseye text-teal-600 text-base"></i>
+                <div class="text-xs text-slate-500 font-medium">Accuracy: <span id="accuracy-display" class="text-slate-900 font-bold text-sm">100%</span></div>
+            </div>
+
+            <!-- Timer -->
+            <div class="flex items-center justify-center space-x-2 bg-slate-50 py-1.5 px-3 rounded-lg border border-slate-200">
+                <i class="fa-regular fa-clock text-indigo-500 text-base"></i>
+                <div class="text-xs text-slate-500 font-medium">Time: <span id="timer-display" class="text-slate-900 font-bold text-sm">00:00</span></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Game Workspace -->
+    <main class="max-w-7xl mx-auto px-4 py-4 md:py-6 flex-grow w-full">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            
+            <!-- Left Side: Interactive Anatomical SVG Diagram (5 Cols) -->
+            <section class="lg:col-span-6 bg-white p-4 md:p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col items-center relative">
+                <div class="w-full flex justify-between items-center mb-3">
+                    <h2 class="text-sm font-bold text-slate-700 flex items-center gap-2">
+                        <i class="fa-solid fa-diagram-project text-teal-600"></i>
+                        Articulatory Anatomy Vocal Tract
+                    </h2>
+                    <span class="text-xs text-slate-400 italic">Match organ terms to numbers 1-17</span>
+                </div>
+
+                <!-- SVG Vector Diagram Container -->
+                <div class="w-full relative flex justify-center bg-slate-50 rounded-xl p-2 md:p-4 border border-slate-100 overflow-hidden">
+                    <svg id="vocal-tract-svg" viewBox="0 0 500 580" class="w-full h-auto max-w-[480px] drop-shadow-md select-none">
+                        <!-- Head / Vocal Tract Outlines -->
+                        <!-- Head Contour -->
+                        <path d="M 100 270 C 80 180, 150 20, 300 20 C 440 20, 480 140, 490 250 C 480 400, 440 540, 430 570 L 300 570 L 300 420 C 300 370, 340 340, 290 290 C 290 260, 190 250, 200 250 C 120 250, 100 220, 99 260 Z" fill="#ebebeb" stroke="#334155" stroke-width="3.5" stroke-linejoin="round" />
+                        <!-- Decorative Thyroid Cartilage (Visual Only, No Game Mechanics) -->
+<path d="M 240 490 L 230 500, 215 465, 240 580 Z" 
+      fill="#e2e8f0" 
+      stroke="#334155" 
+      stroke-width="3" 
+      pointer-events="none"  transform ="translate(54,0)"/>
+                        <!-- Nasal Cavity Path -->
+                        <path d="M 100 255 C 100 200, 160 180, 250 180 C 290 180, 310 200, 300 250 C 270 210, 170 210, 110 265 Z" fill="#ffffff" stroke="#334155" stroke-width="2.5" />
+                        
+                        <!-- Oral Cavity & Roof of Mouth (Hard/Soft Palate, Velum, Uvula) -->
+                        <path d="M 120 280 C 135 280, 160 280, 170 280 C 210 280, 240 280, 270 280 C 290 280, 300 290, 295 310 C 290 325, 285 320, 280 305 C 270 295, 230 290, 170 290 Z" fill="#ffffff" stroke="#334155" stroke-width="2.5" />
+                        
+                        <!-- Tongue Outline -->
+                        <path d="M 120 350 C 125 315, 145 305, 159 305 C 179 305, 205 300, 250 318 C 278 310, 285 360, 250 800, 210 420  240 420, 200 420 C 29 422, 129 380, 120 355 Z" fill="#e2e8f0" stroke="#334155" stroke-width="3" />
+                        
+                        <!-- Lips (2) -->
+                        <path d="M 105 270 C 100 270, 110 285, 110 290 C 100 295, 90 310, 108 315 C 100 320, 95 330, 110 335 C 115 350, 120 375, 110 395 C 100 400, 90 410, 105 420" fill="none" stroke="#334155" stroke-width="3" />
+                        
+                        <!-- Upper & Lower Teeth (3) -->
+                        <!-- Upper Teeth -->
+                        <polygon points="120,290 128,308 135,290" fill="#ffffff" stroke="#334155" stroke-width="2" />
+                        <!-- Lower Teeth -->
+                        <polygon points="122,340 130,320 138,340" fill="#ffffff" stroke="#334155" stroke-width="2" />
+
+                        <!-- Epiglottis (13) -->
+                        <path d="M 265 418 C 265 403, 252 398, 256 388 C 258 383, 265 388, 268 403 C 375 320, 270 442, 265 413 Z" fill="#cbd5e1" stroke="#334155" stroke-width="0" transform ="translate(-23,0)"/>
+
+                        <!-- Larynx (14) & Vocal Cords (15) -->
+                        <path d="M 245 440 L 245 490 L 260 490 L 260 440 Z" fill="#334155" transform ="translate(18,0)"/>
+                        <path d="M 285 440 L 285 490 L 295 490 L 295 440 Z" fill="#334155"  transform ="translate(18,0)"/>
+                        <!-- Vocal cord fold line (15) -->
+                        <line x1="250" y1="465" x2="290" y2="465" stroke="#334155" stroke-width="3" transform ="translate(18,0)"/>
+
+                        <!-- Trachea (16) & Esophagus (17) Tubes -->
+                        <!-- Trachea (Front) -->
+                        <path d="M 240 490 L 240 570 M 265 490 L 265 570" stroke="#none" stroke-width="3" fill="none" />
+                        <!-- Esophagus (Back) -->
+                        <path d="M 285 490 L 285 570 M 305 490 L 305 570" stroke="#none" stroke-width="3" fill="none" />
+
+                        <!-- RED ANATOMICAL LABELS & POINTER LINES (1 to 17) -->
+                        
+                        <!-- 1: Nasal Cavity -->
+                        <text x="180" y="215" font-weight="bold" font-size="22" fill="#0f172a">1</text>
+                        
+                        <!-- 2: Upper and Lower Lips -->
+                        <line x1="60" y1="282" x2="100" y2="282" stroke="#ef4444" stroke-width="2" />
+                        <line x1="60" y1="282" x2="96" y2="330" stroke="#ef4444" stroke-width="2" />
+                        <text x="40" y="288" font-weight="bold" font-size="22" fill="#0f172a">2</text>
+
+                        <!-- 3: Upper and Lower Teeth -->
+                        <line x1="85" y1="365" x2="124" y2="300" stroke="#ef4444" stroke-width="2" />
+                        <line x1="85" y1="365" x2="126" y2="330" stroke="#ef4444" stroke-width="2" />
+                        <text x="65" y="372" font-weight="bold" font-size="22" fill="#0f172a">3</text>
+
+                        <!-- 4: Alveolar Ridge -->
+                        <text x="145" y="272" font-weight="bold" font-size="20" fill="#0f172a">4</text>
+
+                        <!-- 5: Hard Palate -->
+                        <text x="200" y="272" font-weight="bold" font-size="20" fill="#0f172a">5</text>
+                        <line x1="220" y1="280" x2="225" y2="265" stroke="#ef4444" stroke-width="2" />
+
+                        <!-- 6: Soft Palate (Velum) -->
+                        <text x="268" y="255" font-weight="bold" font-size="20" fill="#0f172a">6</text>
+                        <line x1="250" y1="280" x2="265" y2="260" stroke="#ef4444" stroke-width="2" />
+
+                        <!-- 7: Uvula -->
+                        <text x="312" y="295" font-weight="bold" font-size="20" fill="#0f172a">7</text>
+                        <line x1="290" y1="305" x2="310" y2="290" stroke="#ef4444" stroke-width="2" />
+
+                        <!-- 8: Tongue tip (apex) -->
+                        <text x="175" y="355" font-weight="bold" font-size="20" fill="#0f172a">8</text>
+
+                        <!-- 9: Tongue bridge / blade -->
+                        <text x="205" y="340" font-weight="bold" font-size="20" fill="#0f172a">9</text>
+
+                        <!-- 10: Tongue body -->
+                        <text x="245" y="348" font-weight="bold" font-size="20" fill="#0f172a">10</text>
+
+                        <!-- 11: Oral cavity -->
+                        <text x="180" y="312" font-weight="bold" font-size="20" fill="#0f172a">11</text>
+
+                        <!-- 12: Pharynx -->
+                        <text x="310" y="380" font-weight="bold" font-size="20" fill="#0f172a">12</text>
+
+                        <!-- 13: Epiglottis -->
+                        <text x="215" y="425" font-weight="bold" font-size="20" fill="#0f172a">13</text>
+                        <line x1="233" y1="422" x2="258" y2="408" stroke="#ef4444" stroke-width="2" />
+
+                        <!-- 14: Larynx -->
+                        <text x="172" y="475" font-weight="bold" font-size="20" fill="#0f172a">14</text>
+                        <line x1="198" y1="470" x2="245" y2="450" stroke="#ef4444" stroke-width="2" />
+                        <line x1="198" y1="470" x2="285" y2="470" stroke="#ef4444" stroke-width="2" />
+
+                        <!-- 15: Vocal cords -->
+                        <text x="212" y="458" font-weight="bold" font-size="20" fill="#0f172a">15</text>
+                        <line x1="235" y1="455" x2="265" y2="465" stroke="#ef4444" stroke-width="2" />
+
+                        <!-- 16: Trachea -->
+                        <text x="245" y="555" font-weight="bold" font-size="20" fill="#0f172a">16</text>
+
+                        <!-- 17: Esophagus -->
+                        <text x="310" y="555" font-weight="bold" font-size="20" fill="#0f172a">17</text>
+                    </svg>
+                </div>
+            </section>
+
+            <!-- Right Side: Designation Target Drop Slots & Toolbox Panel (7 Cols) -->
+            <section class="lg:col-span-6 space-y-5">
+                
+                <!-- Designation Slots Grid -->
+                <div class="bg-white p-4 md:p-5 rounded-2xl shadow-sm border border-slate-200">
+                    <div class="flex justify-between items-center mb-3">
+                        <h2 class="text-sm font-bold text-slate-700 flex items-center gap-2">
+                            <i class="fa-solid fa-list-check text-teal-600"></i>
+                            Anatomical Designation Slots (1 - 17)
+                        </h2>
+                        <span id="placed-counter" class="text-xs bg-slate-100 text-slate-600 font-semibold px-2.5 py-1 rounded-full">
+                            0 / 17 Matched
+                        </span>
+                    </div>
+
+                    <div id="drop-slots-container" class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-[380px] overflow-y-auto pr-1 custom-scrollbar">
+                        <!-- 17 Drop slots generated dynamically via JavaScript -->
+                    </div>
+                </div>
+
+                <!-- Organ Terminology Toolbox Container -->
+                <div class="bg-slate-900 text-white p-4 md:p-5 rounded-2xl shadow-lg border border-slate-800">
+                    <div class="flex justify-between items-center mb-3">
+                        <div class="flex items-center space-x-2">
+                            <i class="fa-solid fa-toolbox text-amber-400 text-lg"></i>
+                            <h3 class="font-bold text-sm tracking-wide text-white">Organ Terminology Toolbox</h3>
+                        </div>
+                        <span class="text-xs text-slate-400">Drag or Tap to Place</span>
+                    </div>
+
+                    <!-- Toolbox Draggable Terms List -->
+                    <div id="toolbox-container" class="flex flex-wrap gap-2 p-3 bg-slate-800/80 rounded-xl border border-slate-700/60 min-h-[110px] items-center custom-scrollbar max-h-[220px] overflow-y-auto">
+                        <!-- Term blocks injected dynamically -->
+                    </div>
+                </div>
+
+            </section>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-slate-200 py-3 px-4 text-center text-xs text-slate-500 mt-6">
+        <p>Phonetics & Linguistics Study Suite &bull; Articulatory Phonetics Interactive Module</p>
+    </footer>
+
+    <!-- Victory Overlay Modal -->
+    <div id="victory-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden opacity-0 transition-opacity duration-300">
+        <div class="bg-white rounded-3xl p-6 md:p-8 max-w-md w-full shadow-2xl text-center transform scale-95 transition-transform duration-300 border border-slate-100 relative overflow-hidden">
+            <!-- Confetti Canvas Background -->
+            <canvas id="confetti-canvas" class="absolute inset-0 pointer-events-none w-full h-full"></canvas>
+
+            <div class="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center text-3xl mx-auto mb-4 shadow-inner">
+                <i class="fa-solid fa-trophy"></i>
+            </div>
+
+            <h2 class="text-2xl font-extrabold text-slate-900 mb-1">Anatomy Mastered!</h2>
+            <p class="text-sm text-slate-500 mb-6">You successfully matched all 17 articulatory organs of speech.</p>
+
+            <div class="grid grid-cols-3 gap-3 bg-slate-50 p-4 rounded-2xl mb-6 border border-slate-100">
+                <div>
+                    <div class="text-xs text-slate-400 font-medium">Final Score</div>
+                    <div id="modal-score" class="text-lg font-bold text-slate-800">0</div>
+                </div>
+                <div>
+                    <div class="text-xs text-slate-400 font-medium">Time Taken</div>
+                    <div id="modal-time" class="text-lg font-bold text-slate-800">00:00</div>
+                </div>
+                <div>
+                    <div class="text-xs text-slate-400 font-medium">Accuracy</div>
+                    <div id="modal-accuracy" class="text-lg font-bold text-emerald-600">100%</div>
+                </div>
+            </div>
+
+            <button onclick="resetGame()" class="w-full py-3.5 px-6 bg-teal-600 hover:bg-teal-500 text-white font-bold rounded-xl shadow-lg shadow-teal-600/30 transition transform active:scale-95 flex items-center justify-center gap-2">
+                <i class="fa-solid fa-play"></i>
+                <span>Play Again</span>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Key Mapping (1 to 17) based on standard articulatory phonetics diagram
+        const ORGANS_DATA = [
+            { id: 1, name: "Nasal cavity", hint: "Large cavity above the oral cavity for nasal sounds." },
+            { id: 2, name: "Upper and lower lips", hint: "Labial articulators (bilabial/labiodental)." },
+            { id: 3, name: "Upper and lower teeth", hint: "Dental articulators used with lips/tongue." },
+            { id: 4, name: "Alveolar ridge", hint: "Bony ridge right behind the upper teeth." },
+            { id: 5, name: "Hard palate", hint: "Bony roof of the mouth behind alveolar ridge." },
+            { id: 6, name: "Soft palate (velum)", hint: "Muscular roof section that lowers for nasal sound airflow." },
+            { id: 7, name: "Uvula", hint: "Fleshy appendage hanging at the back of the velum." },
+            { id: 8, name: "Tongue tip (apex)", hint: "The apex or tip of the tongue." },
+            { id: 9, name: "Tongue bridge", hint: "The blade / upper front region of tongue." },
+            { id: 10, name: "Tongue body", hint: "Main dorsum / mass of the tongue." },
+            { id: 11, name: "Oral cavity", hint: "Main mouth cavity space." },
+            { id: 12, name: "Pharynx", hint: "Throat passage behind oral and nasal cavities." },
+            { id: 13, name: "Epiglottis", hint: "Leaf-shaped cartilage flap protecting trachea." },
+            { id: 14, name: "Larynx", hint: "Voice box holding the vocal cords." },
+            { id: 15, name: "Vocal cords", hint: "Vibrating membrane folds generating phonation." },
+            { id: 16, name: "Trachea (tube to lungs)", hint: "Windpipe conducting air from lungs." },
+            { id: 17, name: "Esophagus (tube to stomach)", hint: "Food tube behind the trachea." }
+        ];
+
+        // Game State Variables
+        let matchedState = {}; // { 1: { id: 1, name: "Nasal cavity" }, ... }
+        let score = 0;
+        let totalAttempts = 0;
+        let correctAttempts = 0;
+        let selectedTermId = null; // For touch / click fallback
+        let timerInterval = null;
+        let secondsElapsed = 0;
+        let soundEnabled = true;
+
+        // Web Audio API Audio Synthesizer
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        let audioCtx = null;
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new AudioContext();
+            }
+        }
+
+        function playSound(type) {
+            if (!soundEnabled) return;
+            initAudio();
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+
+            const now = audioCtx.currentTime;
+
+            if (type === 'success') {
+                // Happy high chime chord
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(523.25, now); // C5
+                osc.frequency.exponentialRampToValueAtTime(659.25, now + 0.1); // E5
+                osc.frequency.exponentialRampToValueAtTime(783.99, now + 0.2); // G5
+                gain.gain.setValueAtTime(0.15, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(now);
+                osc.stop(now + 0.35);
+            } else if (type === 'error') {
+                // Low buzz error sound
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(180, now);
+                osc.frequency.linearRampToValueAtTime(110, now + 0.2);
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(now);
+                osc.stop(now + 0.25);
+            } else if (type === 'victory') {
+                // Victory Arpeggio
+                const notes = [523.25, 659.25, 783.99, 1046.50];
+                notes.forEach((freq, idx) => {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(freq, now + idx * 0.1);
+                    gain.gain.setValueAtTime(0.2, now + idx * 0.1);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.1 + 0.4);
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start(now + idx * 0.1);
+                    osc.stop(now + idx * 0.1 + 0.4);
+                });
+            }
+        }
+
+        function toggleSound() {
+            soundEnabled = !soundEnabled;
+            const icon = document.getElementById('sound-icon');
+            const btn = document.getElementById('sound-btn');
+            if (soundEnabled) {
+                icon.className = 'fa-solid fa-volume-high text-teal-400';
+                btn.classList.remove('opacity-60');
+            } else {
+                icon.className = 'fa-solid fa-volume-xmark text-slate-400';
+                btn.classList.add('opacity-60');
+            }
+        }
+
+        // Utility: Fisher-Yates Shuffle
+        function shuffleArray(arr) {
+            const array = [...arr];
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        // Initialize Game DOM Elements
+        function initGame() {
+            matchedState = {};
+            score = 0;
+            totalAttempts = 0;
+            correctAttempts = 0;
+            selectedTermId = null;
+            secondsElapsed = 0;
+
+            updateScoreboard();
+            startTimer();
+
+            // Render Target Drop Slots (1 to 17 in numerical order)
+            const dropContainer = document.getElementById('drop-slots-container');
+            dropContainer.innerHTML = '';
+
+            ORGANS_DATA.forEach(organ => {
+                const slot = document.createElement('div');
+                slot.id = `slot-${organ.id}`;
+                slot.dataset.id = organ.id;
+                slot.className = `drop-slot bg-slate-50 border-2 border-dashed border-slate-300 rounded-xl p-2.5 flex items-center justify-between transition-all duration-200 min-h-[52px] cursor-pointer hover:border-slate-400`;
+                
+                slot.innerHTML = `
+                    <div class="flex items-center gap-2.5 w-full">
+                        <span class="w-7 h-7 rounded-lg bg-slate-800 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-sm">
+                            ${organ.id}
+                        </span>
+                        <div class="slot-content flex-grow text-xs text-slate-400 font-medium italic">
+                            Drop organ term #${organ.id} here...
+                        </div>
+                    </div>
+                `;
+
+                // Drag and Drop Event Listeners
+                slot.addEventListener('dragover', handleDragOver);
+                slot.addEventListener('dragenter', handleDragEnter);
+                slot.addEventListener('dragleave', handleDragLeave);
+                slot.addEventListener('drop', handleDrop);
+                slot.addEventListener('click', () => handleSlotClick(organ.id));
+
+                dropContainer.appendChild(slot);
+            });
+
+            // Populate Toolbox with randomized terms
+            populateToolbox();
+        }
+
+        function populateToolbox() {
+            const toolbox = document.getElementById('toolbox-container');
+            toolbox.innerHTML = '';
+
+            // Get remaining unplaced organs
+            const unplaced = ORGANS_DATA.filter(item => !matchedState[item.id]);
+            const randomized = shuffleArray(unplaced);
+
+            if (randomized.length === 0) {
+                toolbox.innerHTML = `<div class="text-xs text-emerald-400 font-semibold p-2 flex items-center gap-2"><i class="fa-solid fa-circle-check"></i> All terms successfully placed!</div>`;
+                return;
+            }
+
+            randomized.forEach(organ => {
+                const termBlock = document.createElement('div');
+                termBlock.id = `term-${organ.id}`;
+                termBlock.dataset.id = organ.id;
+                termBlock.draggable = true;
+                termBlock.className = `term-block bg-slate-700 hover:bg-slate-600 active:bg-slate-500 text-white border border-slate-600/80 font-medium text-xs rounded-lg px-3 py-2 cursor-grab active:cursor-grabbing transition duration-150 shadow-sm flex items-center gap-2 select-none`;
+
+                termBlock.innerHTML = `
+                    <i class="fa-solid fa-grip-vertical text-slate-400 text-xs"></i>
+                    <span>${organ.name}</span>
+                `;
+
+                // Drag Event Listeners
+                termBlock.addEventListener('dragstart', handleDragStart);
+                termBlock.addEventListener('dragend', handleDragEnd);
+
+                // Touch / Click Select Fallback
+                termBlock.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    handleTermClick(organ.id);
+                });
+
+                toolbox.appendChild(termBlock);
+            });
+        }
+
+        // Drag API Handlers
+        let draggedTermId = null;
+
+        function handleDragStart(e) {
+            initAudio();
+            draggedTermId = parseInt(this.dataset.id);
+            e.dataTransfer.setData('text/plain', draggedTermId);
+            e.dataTransfer.effectAllowed = 'move';
+            this.classList.add('opacity-40');
+        }
+
+        function handleDragEnd(e) {
+            this.classList.remove('opacity-40');
+            draggedTermId = null;
+        }
+
+        function handleDragOver(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+        }
+
+        function handleDragEnter(e) {
+            e.preventDefault();
+            this.classList.add('drag-over');
+        }
+
+        function handleDragLeave(e) {
+            this.classList.remove('drag-over');
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            this.classList.remove('drag-over');
+
+            const targetSlotId = parseInt(this.dataset.id);
+            const termId = parseInt(e.dataTransfer.getData('text/plain') || draggedTermId);
+
+            if (termId) {
+                attemptMatch(termId, targetSlotId);
+            }
+        }
+
+        // Click / Touch Fallback Handlers
+        function handleTermClick(termId) {
+            initAudio();
+            // Clear previous selection if any
+            if (selectedTermId) {
+                const prev = document.getElementById(`term-${selectedTermId}`);
+                if (prev) prev.classList.remove('touch-selected', 'ring-2', 'ring-teal-400');
+            }
+
+            if (selectedTermId === termId) {
+                selectedTermId = null; // Toggle deselect
+                return;
+            }
+
+            selectedTermId = termId;
+            const current = document.getElementById(`term-${termId}`);
+            if (current) {
+                current.classList.add('touch-selected', 'ring-2', 'ring-teal-400');
+            }
+        }
+
+        function handleSlotClick(slotId) {
+            if (selectedTermId && !matchedState[slotId]) {
+                attemptMatch(selectedTermId, slotId);
+                selectedTermId = null;
+            }
+        }
+
+        // Core Game Match Logic
+        function attemptMatch(termId, slotId) {
+            totalAttempts++;
+            const organ = ORGANS_DATA.find(o => o.id === termId);
+            const slotElement = document.getElementById(`slot-${slotId}`);
+
+            if (termId === slotId) {
+                // CORRECT DROP
+                correctAttempts++;
+                score += 100;
+                matchedState[slotId] = organ;
+
+                playSound('success');
+
+                // Update Slot UI
+                slotElement.className = `drop-slot bg-emerald-50 border-2 border-emerald-500 rounded-xl p-2.5 flex items-center justify-between transition duration-300 animate-success shadow-sm`;
+                slotElement.innerHTML = `
+                    <div class="flex items-center gap-2.5 w-full">
+                        <span class="w-7 h-7 rounded-lg bg-emerald-600 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-sm">
+                            <i class="fa-solid fa-check"></i>
+                        </span>
+                        <div class="flex-grow">
+                            <span class="text-xs font-bold text-emerald-900">${organ.name}</span>
+                            <span class="text-[10px] text-emerald-600 block">Number ${organ.id}</span>
+                        </div>
+                    </div>
+                `;
+
+                // Remove term block from toolbox
+                const termBlock = document.getElementById(`term-${termId}`);
+                if (termBlock) termBlock.remove();
+
+                // Update Progress and Check Victory
+                updateScoreboard();
+
+                if (Object.keys(matchedState).length === ORGANS_DATA.length) {
+                    triggerVictory();
+                }
+
+            } else {
+                // INCORRECT DROP
+                score = Math.max(0, score - 25);
+                playSound('error');
+
+                // Shake animation on target slot & term block
+                slotElement.classList.add('animate-shake', 'border-red-400', 'bg-red-50');
+                
+                const termBlock = document.getElementById(`term-${termId}`);
+                if (termBlock) {
+                    termBlock.classList.add('animate-shake', 'bg-red-600');
+                }
+
+                setTimeout(() => {
+                    slotElement.classList.remove('animate-shake', 'border-red-400', 'bg-red-50');
+                    if (termBlock) {
+                        termBlock.classList.remove('animate-shake', 'bg-red-600');
+                    }
+                    // Return block automatically to toolbox (re-populate container if needed)
+                    populateToolbox();
+                }, 450);
+
+                updateScoreboard();
+            }
+        }
+
+        function updateScoreboard() {
+            const count = Object.keys(matchedState).length;
+            document.getElementById('progress-text').innerText = `${count} / ${ORGANS_DATA.length}`;
+            document.getElementById('placed-counter').innerText = `${count} / ${ORGANS_DATA.length} Matched`;
+
+            const percentage = Math.round((count / ORGANS_DATA.length) * 100);
+            document.getElementById('progress-bar').style.width = `${percentage}%`;
+
+            document.getElementById('score-display').innerText = score;
+
+            const accuracy = totalAttempts > 0 ? Math.round((correctAttempts / totalAttempts) * 100) : 100;
+            document.getElementById('accuracy-display').innerText = `${accuracy}%`;
+        }
+
+        function startTimer() {
+            clearInterval(timerInterval);
+            secondsElapsed = 0;
+            timerInterval = setInterval(() => {
+                secondsElapsed++;
+                const mins = Math.floor(secondsElapsed / 60).toString().padStart(2, '0');
+                const secs = (secondsElapsed % 60).toString().padStart(2, '0');
+                document.getElementById('timer-display').innerText = `${mins}:${secs}`;
+            }, 1000);
+        }
+
+        function triggerHint() {
+            initAudio();
+            // Find unplaced organs
+            const unplaced = ORGANS_DATA.filter(o => !matchedState[o.id]);
+            if (unplaced.length === 0) return;
+
+            const target = unplaced[Math.floor(Math.random() * unplaced.length)];
+            
+            // Deduct score penalty
+            score = Math.max(0, score - 20);
+            updateScoreboard();
+
+            // Pulse highlight matching slot and term block
+            const slot = document.getElementById(`slot-${target.id}`);
+            const term = document.getElementById(`term-${target.id}`);
+
+            if (slot) slot.classList.add('animate-hint');
+            if (term) term.classList.add('animate-hint');
+
+            setTimeout(() => {
+                if (slot) slot.classList.remove('animate-hint');
+                if (term) term.classList.remove('animate-hint');
+            }, 2500);
+        }
+
+        function triggerVictory() {
+            clearInterval(timerInterval);
+            playSound('victory');
+
+            const mins = Math.floor(secondsElapsed / 60).toString().padStart(2, '0');
+            const secs = (secondsElapsed % 60).toString().padStart(2, '0');
+            const accuracy = Math.round((correctAttempts / totalAttempts) * 100);
+
+            document.getElementById('modal-score').innerText = score;
+            document.getElementById('modal-time').innerText = `${mins}:${secs}`;
+            document.getElementById('modal-accuracy').innerText = `${accuracy}%`;
+
+            const modal = document.getElementById('victory-modal');
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                modal.children[0].classList.remove('scale-95');
+                modal.children[0].classList.add('scale-100');
+            }, 10);
+
+            launchConfetti();
+        }
+
+        function resetGame() {
+            const modal = document.getElementById('victory-modal');
+            modal.classList.add('opacity-0');
+            modal.children[0].classList.remove('scale-100');
+            modal.children[0].classList.add('scale-95');
+            
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                initGame();
+            }, 300);
+        }
+
+        // Lightweight Canvas Confetti Generator
+        function launchConfetti() {
+            const canvas = document.getElementById('confetti-canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = canvas.parentElement.clientWidth;
+            canvas.height = canvas.parentElement.clientHeight;
+
+            const particles = [];
+            const colors = ['#0d9488', '#0284c7', '#f59e0b', '#10b981', '#6366f1'];
+
+            for (let i = 0; i < 70; i++) {
+                particles.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height - canvas.height,
+                    size: Math.random() * 6 + 4,
+                    color: colors[Math.floor(Math.random() * colors.length)],
+                    vy: Math.random() * 3 + 2,
+                    vx: Math.random() * 2 - 1
+                });
+            }
+
+            function animateConfetti() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                let alive = false;
+
+                particles.forEach(p => {
+                    p.y += p.vy;
+                    p.x += p.vx;
+                    ctx.fillStyle = p.color;
+                    ctx.fillRect(p.x, p.y, p.size, p.size);
+
+                    if (p.y < canvas.height) alive = true;
+                });
+
+                if (alive) requestAnimationFrame(animateConfetti);
+            }
+
+            animateConfetti();
+        }
+
+        // Window Load Initialization
+        window.onload = function() {
+            initGame();
+        };
+    </script>
+</body>
+</html>
